@@ -1,0 +1,84 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Theme primitives (re-using existing palette). */
+  --color-bg: #242424;
+  --color-fg: rgba(255, 255, 255, 0.87);
+  --color-link: #646cff;
+  --color-link-hover: #535bf2;
+  --color-surface: #1a1a1a;
+  --radius-md: 8px;
+
+  color-scheme: light dark;
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: var(--color-link);
+  text-decoration: inherit;
+}
+a:hover {
+  color: var(--color-link-hover);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button {
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: var(--color-link);
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.card {
+  padding: 2em;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Light theme primitives (re-using existing palette). */
+    --color-bg: #ffffff;
+    --color-fg: #213547;
+    --color-link: #646cff;
+    --color-link-hover: #747bff;
+    --color-surface: #f9f9f9;
+
+    color: var(--color-fg);
+    background-color: var(--color-bg);
+  }
+  a:hover {
+    color: var(--color-link-hover);
+  }
+  button {
+    background-color: var(--color-surface);
+  }
+}

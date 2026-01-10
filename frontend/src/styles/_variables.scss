@@ -1,0 +1,10 @@
+// Central SCSS variables for the app.
+// Values are backed by CSS theme primitives defined in src/style.css.
+
+$color-bg: var(--color-bg);
+$color-fg: var(--color-fg);
+$color-link: var(--color-link);
+$color-link-hover: var(--color-link-hover);
+$color-surface: var(--color-surface);
+
+$radius-md: var(--radius-md);

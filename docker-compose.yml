@@ -1,0 +1,81 @@
+name: image-code
+
+services:
+  qr-db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: qr
+      POSTGRES_USER: qr
+      POSTGRES_PASSWORD: qr
+    ports:
+      - "5433:5432"
+    volumes:
+      - qr_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qr -d qr"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qr-service:
+    build:
+      context: ./backend/qr-service
+    environment:
+      PORT: "8080"
+      CORS_ALLOW_ORIGINS: "http://localhost:5173"
+      DATABASE_URL: "postgres://qr:qr@qr-db:5432/qr?sslmode=disable"
+    ports:
+      - "8080:8080"
+    depends_on:
+      qr-db:
+        condition: service_healthy
+
+  click-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: click
+      POSTGRES_USER: click
+      POSTGRES_PASSWORD: click
+    ports:
+      - "5434:5432"
+    volumes:
+      - click_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U click -d click"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  click-service:
+    build:
+      context: ./backend/click-service
+    environment:
+      PORT: "8082"
+      CORS_ALLOW_ORIGINS: "http://localhost:5173"
+      QR_SERVICE_BASE_URL: "http://qr-service:8080"
+      DATABASE_URL: "postgres://click:click@click-db:5432/click?sslmode=disable"
+    ports:
+      - "8082:8082"
+    depends_on:
+      click-db:
+        condition: service_healthy
+      qr-service:
+        condition: service_started
+
+  user-service:
+    build:
+      context: ./backend/user-service
+    env_file:
+      - ./backend/user-service/.env
+    environment:
+      PORT: "8081"
+      CORS_ALLOW_ORIGINS: "http://localhost:5173"
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: "Lax"
+    ports:
+      - "8081:8081"
+
+volumes:
+  qr_db_data:
+  click_db_data:

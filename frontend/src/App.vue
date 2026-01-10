@@ -1,0 +1,213 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { usersApi } from './api'
+import { useUser } from './composables/useUser'
+
+const route = useRoute()
+const router = useRouter()
+const { user } = useUser()
+const { reload } = useUser()
+
+const isAuthed = computed(() => Boolean(user.value?.email))
+const year = new Date().getFullYear()
+const busyLogout = ref(false)
+
+async function logout() {
+  if (busyLogout.value) return
+  busyLogout.value = true
+  try {
+    await usersApi.logout()
+  } finally {
+    await reload()
+    busyLogout.value = false
+    await router.push({ name: 'home' })
+  }
+}
+const isAuthRoute = computed(() => {
+  const name = String(route.name ?? '')
+  return (
+    name === 'login' ||
+    name === 'register' ||
+    name === 'confirm' ||
+    name === 'forgot-password' ||
+    name === 'reset-password' ||
+    name === 'account' ||
+    name === 'change-password'
+  )
+})
+</script>
+
+<template>
+  <div class="shell">
+    <header class="header">
+      <nav class="nav" aria-label="Primary">
+        <RouterLink class="navLink brand" to="/">QR Codes</RouterLink>
+
+        <div class="spacer" />
+
+        <RouterLink v-if="!isAuthed" class="navLink" to="/register">Create account</RouterLink>
+        <RouterLink v-if="!isAuthed" class="navLink" to="/login">Login</RouterLink>
+
+        <template v-if="isAuthed">
+          <span class="navUser" aria-label="Signed in user">{{ user?.email }}</span>
+          <RouterLink class="navLink" to="/account">Account</RouterLink>
+          <button class="navLink navButton" type="button" :disabled="busyLogout" @click="logout">
+            {{ busyLogout ? 'Logging out…' : 'Logout' }}
+          </button>
+        </template>
+      </nav>
+    </header>
+
+    <main class="content" :class="{ auth: isAuthRoute }">
+      <RouterView />
+    </main>
+
+    <footer class="footer" aria-label="Footer">
+      <div class="footerInner">
+        <div class="footerLeft">
+          <span class="footerBrand">image-code</span>
+          <span class="footerText">© {{ year }}</span>
+        </div>
+
+        <nav class="footerNav" aria-label="Footer links">
+          <RouterLink class="footerLink" to="/">QR Codes</RouterLink>
+          <RouterLink v-if="isAuthed" class="footerLink" to="/account">Account</RouterLink>
+          <RouterLink v-if="!isAuthed" class="footerLink" to="/register">Create account</RouterLink>
+          <RouterLink v-if="!isAuthed" class="footerLink" to="/login">Login</RouterLink>
+        </nav>
+      </div>
+    </footer>
+  </div>
+</template>
+
+<style scoped lang="scss">
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  border-bottom: 1px solid color-mix(in srgb, $color-fg 12%, transparent);
+  background: color-mix(in srgb, $color-surface 70%, transparent);
+}
+
+.content {
+  flex: 1;
+}
+
+.nav {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: $radius-md;
+  border: 1px solid color-mix(in srgb, $color-fg 12%, transparent);
+  text-decoration: none;
+  opacity: 0.95;
+  background: color-mix(in srgb, $color-bg 30%, transparent);
+}
+
+.navButton {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.navButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.navUser {
+  opacity: 0.85;
+  font-weight: 600;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navLink:hover {
+  border-color: color-mix(in srgb, $color-link 55%, transparent);
+  text-decoration: none;
+}
+
+.navLink.router-link-active {
+  opacity: 1;
+  border-color: color-mix(in srgb, $color-link 70%, transparent);
+}
+
+.brand {
+  font-weight: 700;
+}
+
+.footer {
+  padding: 18px 16px 28px;
+  border-top: 1px solid color-mix(in srgb, $color-fg 12%, transparent);
+  background: color-mix(in srgb, $color-bg 85%, transparent);
+}
+
+.footerInner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.footerLeft {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.footerBrand {
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+.footerText {
+  opacity: 0.8;
+}
+
+.footerNav {
+  display: inline-flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.footerLink {
+  opacity: 0.85;
+  text-decoration: none;
+}
+
+.footerLink:hover {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .spacer {
+    flex-basis: 100%;
+    height: 0;
+  }
+}
+</style>
