@@ -9,7 +9,6 @@ const router = useRouter()
 
 const email = ref('')
 const password = ref('')
-const name = ref('')
 
 const busy = ref(false)
 const errorMessage = ref<string | null>(null)
@@ -21,7 +20,6 @@ async function submit() {
 
   const e = email.value.trim().toLowerCase()
   const p = password.value.trim()
-  const n = name.value.trim()
   if (!e || !p) {
     errorMessage.value = 'Email and password are required.'
     return
@@ -29,7 +27,7 @@ async function submit() {
 
   busy.value = true
   try {
-    await usersApi.register({ email: e, password: p, name: n || undefined })
+    await usersApi.register({ email: e, password: p })
     statusMessage.value = 'Account created. Check your email for a confirmation code.'
     await router.push({ name: 'confirm', query: { email: e } })
   } catch (err) {
@@ -59,11 +57,6 @@ async function submit() {
         <label class="field">
           <span class="label">Password</span>
           <input v-model="password" class="input" type="password" autocomplete="new-password" />
-        </label>
-
-        <label class="field">
-          <span class="label">Name (optional)</span>
-          <input v-model="name" class="input" type="text" autocomplete="name" />
         </label>
 
         <div class="actions">

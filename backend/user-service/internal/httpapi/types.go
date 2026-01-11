@@ -10,14 +10,12 @@ type AuthSession struct {
 type createUserInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Name     string `json:"name,omitempty"`
 	UserType string `json:"userType,omitempty"`
 }
 
 type updateUserInput struct {
 	Email    *string `json:"email,omitempty"`
 	Password *string `json:"password,omitempty"`
-	Name     *string `json:"name,omitempty"`
 	UserType *string `json:"userType,omitempty"`
 
 	// Optional management

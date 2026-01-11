@@ -93,6 +93,22 @@ func derivedUsernameFromEmail(email string) string {
 	return "email_" + hex.EncodeToString(sum[:])
 }
 
+func derivedUsernameFromIdentifier(id string) string {
+	if !strings.Contains(id, "@") {
+		return ""
+	}
+	derived := derivedUsernameFromEmail(id)
+	if derived == "" || derived == id {
+		return ""
+	}
+	return derived
+}
+
+func shouldTryDerivedUsername(err error) bool {
+	code := smithyErrorCode(err)
+	return usernameCannotBeEmailInThisPool(err) || code == "UserNotFoundException"
+}
+
 func usernameCannotBeEmailInThisPool(err error) bool {
 	// Observed error when the User Pool is configured with email alias:
 	// "Username cannot be of email format, since user pool is configured for email alias."
@@ -206,7 +222,6 @@ func (srv Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Password = strings.TrimSpace(req.Password)
-	req.Name = strings.TrimSpace(req.Name)
 	req.UserType = normalizeUserType(req.UserType)
 	if req.Email == "" || req.Password == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "email_and_password_required"})
@@ -222,9 +237,6 @@ func (srv Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	attrsBase := []types.AttributeType{{Name: aws.String("email"), Value: aws.String(req.Email)}}
-	if req.Name != "" {
-		attrsBase = append(attrsBase, types.AttributeType{Name: aws.String("name"), Value: aws.String(req.Name)})
-	}
 
 	attrsWithUserType := attrsBase
 	if req.UserType != "" {
@@ -244,13 +256,11 @@ func (srv Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return srv.Cognito.SignUp(ctx, in)
 	}
 
-	username := req.Email
+	// Use the derived username scheme so we're consistent with pools configured
+	// to allow email as an alias while disallowing email-format usernames.
+	username := derivedUsernameFromEmail(req.Email)
 	attrs := attrsWithUserType
 	out, err := signUp(username, attrs)
-	if err != nil && usernameCannotBeEmailInThisPool(err) {
-		username = derivedUsernameFromEmail(req.Email)
-		out, err = signUp(username, attrs)
-	}
 	if err != nil && userTypeAttributeNotInSchema(err) && len(attrs) != len(attrsBase) {
 		attrs = attrsBase
 		out, err = signUp(username, attrs)
@@ -260,7 +270,7 @@ func (srv Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session := AuthSession{User: model.User{ID: aws.ToString(out.UserSub), Email: req.Email, Name: req.Name, UserType: req.UserType}.NormalizeForResponse()}
+	session := AuthSession{User: model.User{ID: aws.ToString(out.UserSub), Email: req.Email, UserType: req.UserType}.NormalizeForResponse()}
 	writeJSON(w, http.StatusOK, session)
 }
 
@@ -279,19 +289,36 @@ func (srv Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := map[string]string{
-		"USERNAME": req.Email,
-		"PASSWORD": req.Password,
-	}
-	if srv.ClientSecret != "" {
-		params["SECRET_HASH"] = cognito.SecretHash(req.Email, srv.ClientID, srv.ClientSecret)
+	attempt := func(username string) (*cognitoidentityprovider.InitiateAuthOutput, error) {
+		params := map[string]string{
+			"USERNAME": username,
+			"PASSWORD": req.Password,
+		}
+		if srv.ClientSecret != "" {
+			params["SECRET_HASH"] = cognito.SecretHash(username, srv.ClientID, srv.ClientSecret)
+		}
+
+		return srv.Cognito.InitiateAuth(ctx, &cognitoidentityprovider.InitiateAuthInput{
+			AuthFlow:       types.AuthFlowTypeUserPasswordAuth,
+			ClientId:       aws.String(srv.ClientID),
+			AuthParameters: params,
+		})
 	}
 
-	authOut, err := srv.Cognito.InitiateAuth(ctx, &cognitoidentityprovider.InitiateAuthInput{
-		AuthFlow:       types.AuthFlowTypeUserPasswordAuth,
-		ClientId:       aws.String(srv.ClientID),
-		AuthParameters: params,
-	})
+	derived := derivedUsernameFromEmail(req.Email)
+	authOut, err := attempt(derived)
+	if err != nil {
+		// Back-compat: if some users were created with email as the Username,
+		// try the raw email only when the derived username isn't found.
+		if smithyErrorCode(err) == "UserNotFoundException" {
+			if authOut2, err2 := attempt(req.Email); err2 == nil {
+				authOut = authOut2
+				err = nil
+			} else {
+				err = err2
+			}
+		}
+	}
 	if err != nil {
 		writeAuthError(w, r, http.StatusUnauthorized, "login_failed", err)
 		return
@@ -372,7 +399,7 @@ func (srv Server) handleConfirmSignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := req.Email
+	username := derivedUsernameFromEmail(req.Email)
 	in := &cognitoidentityprovider.ConfirmSignUpInput{
 		ClientId:           aws.String(srv.ClientID),
 		Username:           aws.String(username),
@@ -384,8 +411,9 @@ func (srv Server) handleConfirmSignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := srv.Cognito.ConfirmSignUp(ctx, in); err != nil {
-		if usernameCannotBeEmailInThisPool(err) {
-			username = derivedUsernameFromEmail(req.Email)
+		// Back-compat: try email username only if derived isn't found.
+		if smithyErrorCode(err) == "UserNotFoundException" {
+			username = req.Email
 			in.Username = aws.String(username)
 			if srv.ClientSecret != "" {
 				in.SecretHash = aws.String(cognito.SecretHash(username, srv.ClientID, srv.ClientSecret))
@@ -418,7 +446,8 @@ func (srv Server) handleResendConfirmation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	username := req.Email
+	derived := derivedUsernameFromEmail(req.Email)
+	username := derived
 	in := &cognitoidentityprovider.ResendConfirmationCodeInput{
 		ClientId: aws.String(srv.ClientID),
 		Username: aws.String(username),
@@ -427,25 +456,52 @@ func (srv Server) handleResendConfirmation(w http.ResponseWriter, r *http.Reques
 		in.SecretHash = aws.String(cognito.SecretHash(username, srv.ClientID, srv.ClientSecret))
 	}
 
-	if _, err := srv.Cognito.ResendConfirmationCode(ctx, in); err != nil {
-		if usernameCannotBeEmailInThisPool(err) {
-			username = derivedUsernameFromEmail(req.Email)
+	out, err := srv.Cognito.ResendConfirmationCode(ctx, in)
+	if err != nil {
+		// Back-compat: try email username only if derived isn't found.
+		if smithyErrorCode(err) == "UserNotFoundException" {
+			username = req.Email
 			in.Username = aws.String(username)
 			if srv.ClientSecret != "" {
 				in.SecretHash = aws.String(cognito.SecretHash(username, srv.ClientID, srv.ClientSecret))
 			}
-			if _, err2 := srv.Cognito.ResendConfirmationCode(ctx, in); err2 == nil {
-				writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-				return
+			if out2, err2 := srv.Cognito.ResendConfirmationCode(ctx, in); err2 == nil {
+				out = out2
+				err = nil
 			} else {
 				err = err2
 			}
 		}
-		writeAuthError(w, r, http.StatusBadRequest, "resend_failed", err)
-		return
+		if err != nil {
+			writeAuthError(w, r, http.StatusBadRequest, "resend_failed", err)
+			return
+		}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	resp := map[string]any{"status": "ok"}
+	if out != nil && out.CodeDeliveryDetails != nil {
+		d := out.CodeDeliveryDetails
+		delivery := map[string]string{}
+		if v := aws.ToString(d.Destination); v != "" {
+			delivery["destination"] = v
+		}
+		if v := string(d.DeliveryMedium); v != "" {
+			delivery["medium"] = v
+		}
+		if v := aws.ToString(d.AttributeName); v != "" {
+			delivery["attribute"] = v
+		}
+		if len(delivery) > 0 {
+			resp["delivery"] = delivery
+			log.Printf("resend_confirmation request_id=%s delivery=%v", r.Header.Get("X-Request-Id"), delivery)
+		} else {
+			log.Printf("resend_confirmation request_id=%s delivery=empty", r.Header.Get("X-Request-Id"))
+		}
+	} else {
+		log.Printf("resend_confirmation request_id=%s delivery=none", r.Header.Get("X-Request-Id"))
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (srv Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
@@ -462,7 +518,7 @@ func (srv Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := req.Email
+	username := derivedUsernameFromEmail(req.Email)
 	in := &cognitoidentityprovider.ForgotPasswordInput{
 		ClientId: aws.String(srv.ClientID),
 		Username: aws.String(username),
@@ -472,8 +528,9 @@ func (srv Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := srv.Cognito.ForgotPassword(ctx, in); err != nil {
-		if usernameCannotBeEmailInThisPool(err) {
-			username = derivedUsernameFromEmail(req.Email)
+		// Back-compat: try email username only if derived isn't found.
+		if smithyErrorCode(err) == "UserNotFoundException" {
+			username = req.Email
 			in.Username = aws.String(username)
 			if srv.ClientSecret != "" {
 				in.SecretHash = aws.String(cognito.SecretHash(username, srv.ClientID, srv.ClientSecret))
@@ -516,7 +573,7 @@ func (srv Server) handleConfirmForgotPassword(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	username := req.Email
+	username := derivedUsernameFromEmail(req.Email)
 	in := &cognitoidentityprovider.ConfirmForgotPasswordInput{
 		ClientId:         aws.String(srv.ClientID),
 		Username:         aws.String(username),
@@ -528,8 +585,9 @@ func (srv Server) handleConfirmForgotPassword(w http.ResponseWriter, r *http.Req
 	}
 
 	if _, err := srv.Cognito.ConfirmForgotPassword(ctx, in); err != nil {
-		if usernameCannotBeEmailInThisPool(err) {
-			username = derivedUsernameFromEmail(req.Email)
+		// Back-compat: try email username only if derived isn't found.
+		if smithyErrorCode(err) == "UserNotFoundException" {
+			username = req.Email
 			in.Username = aws.String(username)
 			if srv.ClientSecret != "" {
 				in.SecretHash = aws.String(cognito.SecretHash(username, srv.ClientID, srv.ClientSecret))
@@ -602,7 +660,14 @@ func (srv Server) handleAdminGetUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 		return
 	}
-	out, err := srv.Cognito.AdminGetUser(ctx, &cognitoidentityprovider.AdminGetUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(id)})
+	username := id
+	derived := derivedUsernameFromIdentifier(id)
+
+	out, err := srv.Cognito.AdminGetUser(ctx, &cognitoidentityprovider.AdminGetUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(username)})
+	if err != nil && derived != "" && shouldTryDerivedUsername(err) {
+		username = derived
+		out, err = srv.Cognito.AdminGetUser(ctx, &cognitoidentityprovider.AdminGetUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(username)})
+	}
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 		return
@@ -621,7 +686,6 @@ func (srv Server) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Password = strings.TrimSpace(req.Password)
-	req.Name = strings.TrimSpace(req.Name)
 	req.UserType = normalizeUserType(req.UserType)
 	if req.Email == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "email_required"})
@@ -636,16 +700,15 @@ func (srv Server) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	attrs := []types.AttributeType{{Name: aws.String("email"), Value: aws.String(req.Email)}}
-	if req.Name != "" {
-		attrs = append(attrs, types.AttributeType{Name: aws.String("name"), Value: aws.String(req.Name)})
-	}
 	if req.UserType != "" {
 		attrs = append(attrs, types.AttributeType{Name: aws.String(cognitoUserTypeAttr), Value: aws.String(req.UserType)})
 	}
 
+	username := derivedUsernameFromEmail(req.Email)
+
 	createOut, err := srv.Cognito.AdminCreateUser(ctx, &cognitoidentityprovider.AdminCreateUserInput{
 		UserPoolId:     aws.String(srv.UserPoolID),
-		Username:       aws.String(req.Email),
+		Username:       aws.String(username),
 		UserAttributes: attrs,
 		MessageAction:  types.MessageActionTypeSuppress,
 	})
@@ -657,7 +720,7 @@ func (srv Server) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) 
 	if req.Password != "" {
 		_, err = srv.Cognito.AdminSetUserPassword(ctx, &cognitoidentityprovider.AdminSetUserPasswordInput{
 			UserPoolId: aws.String(srv.UserPoolID),
-			Username:   aws.String(req.Email),
+			Username:   aws.String(username),
 			Password:   aws.String(req.Password),
 			Permanent:  true,
 		})
@@ -685,6 +748,24 @@ func (srv Server) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	username := id
+	derived := derivedUsernameFromIdentifier(id)
+	try := func(fn func(user string) error) error {
+		err := fn(username)
+		if err == nil {
+			return nil
+		}
+		if derived != "" && derived != username && shouldTryDerivedUsername(err) {
+			if err2 := fn(derived); err2 == nil {
+				username = derived
+				return nil
+			} else {
+				return err2
+			}
+		}
+		return err
+	}
+
 	attrs := make([]types.AttributeType, 0, 2)
 	if req.Email != nil {
 		v := strings.TrimSpace(strings.ToLower(*req.Email))
@@ -694,11 +775,6 @@ func (srv Server) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		attrs = append(attrs, types.AttributeType{Name: aws.String("email"), Value: aws.String(v)})
-	}
-	if req.Name != nil {
-		v := strings.TrimSpace(*req.Name)
-		req.Name = &v
-		attrs = append(attrs, types.AttributeType{Name: aws.String("name"), Value: aws.String(v)})
 	}
 	if req.UserType != nil {
 		v := normalizeUserType(*req.UserType)
@@ -714,12 +790,14 @@ func (srv Server) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) 
 		attrs = append(attrs, types.AttributeType{Name: aws.String(cognitoUserTypeAttr), Value: aws.String(v)})
 	}
 	if len(attrs) > 0 {
-		_, err := srv.Cognito.AdminUpdateUserAttributes(ctx, &cognitoidentityprovider.AdminUpdateUserAttributesInput{
-			UserPoolId:     aws.String(srv.UserPoolID),
-			Username:       aws.String(id),
-			UserAttributes: attrs,
-		})
-		if err != nil {
+		if err := try(func(user string) error {
+			_, err := srv.Cognito.AdminUpdateUserAttributes(ctx, &cognitoidentityprovider.AdminUpdateUserAttributesInput{
+				UserPoolId:     aws.String(srv.UserPoolID),
+				Username:       aws.String(user),
+				UserAttributes: attrs,
+			})
+			return err
+		}); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "update_failed"})
 			return
 		}
@@ -727,13 +805,15 @@ func (srv Server) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) 
 
 	if req.Password != nil {
 		pwd := strings.TrimSpace(*req.Password)
-		_, err := srv.Cognito.AdminSetUserPassword(ctx, &cognitoidentityprovider.AdminSetUserPasswordInput{
-			UserPoolId: aws.String(srv.UserPoolID),
-			Username:   aws.String(id),
-			Password:   aws.String(pwd),
-			Permanent:  true,
-		})
-		if err != nil {
+		if err := try(func(user string) error {
+			_, err := srv.Cognito.AdminSetUserPassword(ctx, &cognitoidentityprovider.AdminSetUserPasswordInput{
+				UserPoolId: aws.String(srv.UserPoolID),
+				Username:   aws.String(user),
+				Password:   aws.String(pwd),
+				Permanent:  true,
+			})
+			return err
+		}); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "set_password_failed"})
 			return
 		}
@@ -741,22 +821,32 @@ func (srv Server) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) 
 
 	if req.Disabled != nil {
 		if *req.Disabled {
-			_, err := srv.Cognito.AdminDisableUser(ctx, &cognitoidentityprovider.AdminDisableUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(id)})
-			if err != nil {
+			if err := try(func(user string) error {
+				_, err := srv.Cognito.AdminDisableUser(ctx, &cognitoidentityprovider.AdminDisableUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(user)})
+				return err
+			}); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "disable_failed"})
 				return
 			}
 		} else {
-			_, err := srv.Cognito.AdminEnableUser(ctx, &cognitoidentityprovider.AdminEnableUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(id)})
-			if err != nil {
+			if err := try(func(user string) error {
+				_, err := srv.Cognito.AdminEnableUser(ctx, &cognitoidentityprovider.AdminEnableUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(user)})
+				return err
+			}); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "enable_failed"})
 				return
 			}
 		}
 	}
 
-	out, err := srv.Cognito.AdminGetUser(ctx, &cognitoidentityprovider.AdminGetUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(id)})
-	if err != nil {
+	var out *cognitoidentityprovider.AdminGetUserOutput
+	if err := try(func(user string) error {
+		o, err := srv.Cognito.AdminGetUser(ctx, &cognitoidentityprovider.AdminGetUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(user)})
+		if err == nil {
+			out = o
+		}
+		return err
+	}); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 		return
 	}
@@ -770,7 +860,14 @@ func (srv Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 		return
 	}
-	_, err := srv.Cognito.AdminDeleteUser(ctx, &cognitoidentityprovider.AdminDeleteUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(id)})
+	username := id
+	derived := derivedUsernameFromIdentifier(id)
+
+	_, err := srv.Cognito.AdminDeleteUser(ctx, &cognitoidentityprovider.AdminDeleteUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(username)})
+	if err != nil && derived != "" && shouldTryDerivedUsername(err) {
+		username = derived
+		_, err = srv.Cognito.AdminDeleteUser(ctx, &cognitoidentityprovider.AdminDeleteUserInput{UserPoolId: aws.String(srv.UserPoolID), Username: aws.String(username)})
+	}
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 		return
@@ -784,8 +881,6 @@ func mapAdminUser(out *cognitoidentityprovider.AdminGetUserOutput) model.User {
 		switch aws.ToString(a.Name) {
 		case "email":
 			user.Email = aws.ToString(a.Value)
-		case "name":
-			user.Name = aws.ToString(a.Value)
 		case cognitoUserTypeAttr:
 			user.UserType = aws.ToString(a.Value)
 		}
@@ -800,8 +895,6 @@ func mapUser(username *string, attrs []types.AttributeType, createdAt *time.Time
 		switch aws.ToString(a.Name) {
 		case "email":
 			u.Email = aws.ToString(a.Value)
-		case "name":
-			u.Name = aws.ToString(a.Value)
 		case cognitoUserTypeAttr:
 			u.UserType = aws.ToString(a.Value)
 		}
@@ -830,8 +923,6 @@ func getUserFromAccessToken(ctx context.Context, api cognito.API, accessToken st
 		switch aws.ToString(a.Name) {
 		case "email":
 			user.Email = aws.ToString(a.Value)
-		case "name":
-			user.Name = aws.ToString(a.Value)
 		case cognitoUserTypeAttr:
 			user.UserType = aws.ToString(a.Value)
 		}

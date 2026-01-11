@@ -45,7 +45,6 @@ const busy = ref<null | 'register' | 'confirm' | 'resend' | 'login' | 'logout' |
 // Register
 const registerEmail = ref('')
 const registerPassword = ref('')
-const registerName = ref('')
 
 // Confirm signup
 const confirmEmail = ref('')
@@ -82,14 +81,13 @@ async function onRegister() {
   await run('register', async () => {
     const email = registerEmail.value.trim().toLowerCase()
     const password = registerPassword.value.trim()
-    const name = registerName.value.trim()
 
     if (!email || !password) {
       errorMessage.value = 'email_and_password_required'
       return
     }
 
-    await usersApi.register({ email, password, name: name || undefined })
+    await usersApi.register({ email, password })
     statusMessage.value = 'Registered. Check your email for a confirmation code (if required), then confirm and log in.'
 
     confirmEmail.value = email
@@ -121,8 +119,10 @@ async function onResend() {
       errorMessage.value = 'email_required'
       return
     }
-    await usersApi.resendConfirmation({ email })
-    statusMessage.value = 'Confirmation code sent (if the account exists and requires confirmation).'
+    const res = await usersApi.resendConfirmation({ email })
+    const dest = res?.delivery?.destination
+    const medium = res?.delivery?.medium
+    statusMessage.value = dest || medium ? `Confirmation code sent${dest ? ` to ${dest}` : ''}${medium ? ` (${medium})` : ''}.` : 'Confirmation code sent (if the account exists and requires confirmation).'
   })
 }
 
@@ -224,11 +224,6 @@ async function onChangePassword() {
         <label class="field">
           <span class="label">Password</span>
           <input v-model="registerPassword" class="input" type="password" autocomplete="new-password" />
-        </label>
-
-        <label class="field">
-          <span class="label">Name (optional)</span>
-          <input v-model="registerName" class="input" type="text" autocomplete="name" />
         </label>
 
         <AppButton type="submit" :disabled="busy !== null">{{ busy === 'register' ? 'Creating…' : 'Create account' }}</AppButton>

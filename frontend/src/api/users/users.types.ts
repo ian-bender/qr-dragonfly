@@ -49,6 +49,11 @@ export type ChangePasswordInput = {
 
 export type StatusResponse = {
   status: string
+  delivery?: {
+    destination?: string
+    medium?: string
+    attribute?: string
+  }
 }
 
 export type AuthSession = {

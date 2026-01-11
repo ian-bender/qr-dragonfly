@@ -55,8 +55,10 @@ async function resend() {
 
   busy.value = 'resend'
   try {
-    await usersApi.resendConfirmation({ email: e })
-    statusMessage.value = 'Confirmation code sent. Check your email.'
+    const res = await usersApi.resendConfirmation({ email: e })
+    const dest = res?.delivery?.destination
+    const medium = res?.delivery?.medium
+    statusMessage.value = dest || medium ? `Confirmation code sent${dest ? ` to ${dest}` : ''}${medium ? ` (${medium})` : ''}.` : 'Confirmation code sent. Check your email.'
   } catch (err) {
     errorMessage.value = authErrorMessage(err)
   } finally {
