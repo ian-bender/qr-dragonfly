@@ -13,6 +13,7 @@ import (
 
 	"user-service/internal/cognito"
 	"user-service/internal/httpapi"
+	"user-service/internal/stripe"
 )
 
 func main() {
@@ -28,6 +29,15 @@ func main() {
 	cookieSecure := envBool("COOKIE_SECURE", false)
 	sameSite := parseSameSite(envOr("COOKIE_SAMESITE", "Lax"))
 
+	// Stripe config (optional)
+	stripeSecretKey := envOr("STRIPE_SECRET_KEY", "")
+	stripeWebhookSecret := envOr("STRIPE_WEBHOOK_SECRET", "")
+	stripeBasicPriceID := envOr("STRIPE_BASIC_PRICE_ID", "")
+	stripeEnterprisePriceID := envOr("STRIPE_ENTERPRISE_PRICE_ID", "")
+	stripeSuccessURL := envOr("STRIPE_SUCCESS_URL", "http://localhost:5173/subscription?success=true")
+	stripeCancelURL := envOr("STRIPE_CANCEL_URL", "http://localhost:5173/subscription")
+	stripePortalReturnURL := envOr("STRIPE_PORTAL_RETURN_URL", "http://localhost:5173/account")
+
 	if userPoolID == "" || clientID == "" {
 		log.Fatal("missing required env: COGNITO_USER_POOL_ID and/or COGNITO_CLIENT_ID")
 	}
@@ -38,6 +48,20 @@ func main() {
 		log.Fatalf("aws config error: %v", err)
 	}
 
+	var stripeClient *stripe.Client
+	if stripeSecretKey != "" && stripeWebhookSecret != "" {
+		stripeClient = stripe.NewClient(stripe.Config{
+			SecretKey:         stripeSecretKey,
+			WebhookSecret:     stripeWebhookSecret,
+			BasicPriceID:      stripeBasicPriceID,
+			EnterprisePriceID: stripeEnterprisePriceID,
+			SuccessURL:        stripeSuccessURL			PortalReturnURL:     stripePortalReturnURL,			CancelURL:         stripeCancelURL,
+		})
+		log.Printf("stripe configured with basic price: %s, enterprise price: %s", stripeBasicPriceID, stripeEnterprisePriceID)
+	} else {
+		log.Printf("stripe not configured (missing STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET)")
+	}
+
 	router := httpapi.NewRouter(httpapi.Server{
 		Cognito:        awsClient,
 		UserPoolID:     userPoolID,
@@ -46,6 +70,7 @@ func main() {
 		AdminAPIKey:    adminKey,
 		CookieSecure:   cookieSecure,
 		CookieSameSite: sameSite,
+		StripeClient:   stripeClient,
 	})
 
 	handler := httpapi.NewCorsMiddleware(httpapi.CorsOptions{

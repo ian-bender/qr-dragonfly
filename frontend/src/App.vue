@@ -51,6 +51,7 @@ const isAuthRoute = computed(() => {
 
         <template v-if="isAuthed">
           <span class="navUser" aria-label="Signed in user">{{ user?.email }}</span>
+          <RouterLink class="navLink" to="/subscription">Subscription</RouterLink>
           <RouterLink class="navLink" to="/account">Account</RouterLink>
           <button class="navLink navButton" type="button" :disabled="busyLogout" @click="logout">
             {{ busyLogout ? 'Logging out…' : 'Logout' }}

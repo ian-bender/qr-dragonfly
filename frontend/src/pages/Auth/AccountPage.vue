@@ -2,15 +2,17 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usersApi } from '../../api'
+import { createPortalSession } from '../../api/stripe/stripe.api'
 import { authErrorMessage } from '../../lib/authErrors'
 import { useUser } from '../../composables/useUser'
 
 const router = useRouter()
-const { user, reload } = useUser()
+const { user, userType, reload } = useUser()
 
 const isAuthed = computed(() => Boolean(user.value?.email))
 
 const busyLogout = ref(false)
+const busyManageSubscription = ref(false)
 const busyRefresh = ref(false)
 const errorMessage = ref<string | null>(null)
 
@@ -88,6 +90,18 @@ async function logout() {
     busyLogout.value = false
   }
 }
+
+async function manageSubscription() {
+  errorMessage.value = null
+  busyManageSubscription.value = true
+  try {
+    const response = await createPortalSession()
+    window.location.href = response.url
+  } catch (err) {
+    errorMessage.value = 'Failed to open subscription management. Please try again.'
+    busyManageSubscription.value = false
+  }
+}
 </script>
 
 <template>
@@ -98,17 +112,16 @@ async function logout() {
     </header>
 
     <section class="card">
-      <h2 class="sectionTitle">Overview</h2>
+      <p v-if="!isAuthed" class="muted">You are not logged in.</p>
 
-      <p class="muted" v-if="!isAuthed">You are not signed in.</p>
-      <div v-else class="kv">
-        <div class="kvRow">
+      <div v-if="isAuthed" class="kv">
+        <div class="kvRow" v-if="user?.email">
           <span class="kvKey">Email</span>
           <span class="kvVal">{{ user?.email }}</span>
         </div>
-        <div class="kvRow" v-if="user?.id">
-          <span class="kvKey">User ID</span>
-          <span class="kvVal">{{ user?.id }}</span>
+        <div class="kvRow" v-if="userType">
+          <span class="kvKey">Plan</span>
+          <span class="kvVal">{{ userType === 'free' ? 'Free' : userType === 'basic' ? 'Basic' : userType === 'enterprise' ? 'Enterprise' : 'Admin' }}</span>
         </div>
       </div>
 
@@ -118,6 +131,20 @@ async function logout() {
         <RouterLink v-if="!isAuthed" to="/confirm">Confirm account</RouterLink>
         <RouterLink v-if="!isAuthed" to="/forgot-password">Forgot password</RouterLink>
         <RouterLink v-if="!isAuthed" to="/reset-password">Reset password</RouterLink>
+        <RouterLink v-if="isAuthed" to="/subscription">View plans</RouterLink>
+      </div>
+
+      <div v-if="isAuthed" class="divider" />
+
+      <div v-if="isAuthed">
+        <h2 class="sectionTitle" style="margin-top: 0">Subscription</h2>
+        <p class="muted">Manage your subscription, payment methods, and billing history.</p>
+        
+        <div class="actions">
+          <button class="button" type="button" :disabled="busyManageSubscription" @click="manageSubscription">
+            {{ busyManageSubscription ? 'Opening…' : 'Manage Subscription' }}
+          </button>
+        </div>
       </div>
 
       <div v-if="isAuthed" class="divider" />
@@ -182,81 +209,4 @@ async function logout() {
 </template>
 
 <style scoped src="./AuthPage.scss" lang="scss"></style>
-
-<style scoped lang="scss">
-.kv {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.kvRow {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
-.kvKey {
-  opacity: 0.8;
-  min-width: 72px;
-}
-
-.kvVal {
-  font-weight: 600;
-  word-break: break-word;
-}
-
-.divider {
-  height: 1px;
-  margin: 16px 0;
-  background: color-mix(in srgb, $color-fg 12%, transparent);
-}
-
-.secondary {
-  border: 1px solid color-mix(in srgb, $color-fg 12%, transparent);
-  background: color-mix(in srgb, $color-bg 55%, transparent);
-}
-
-.dialog {
-  width: min(560px, calc(100vw - 24px));
-  border: 1px solid color-mix(in srgb, $color-fg 14%, transparent);
-  border-radius: $radius-md;
-  padding: 0;
-  background: $color-bg;
-  color: $color-fg;
-}
-
-.dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.dialogInner {
-  padding: 16px;
-}
-
-.dialogHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.dialogTitle {
-  margin: 0;
-  font-size: 18px;
-}
-
-.iconButton {
-  width: 36px;
-  height: 36px;
-  border-radius: $radius-md;
-  border: 1px solid color-mix(in srgb, $color-fg 12%, transparent);
-  background: $color-surface;
-  color: $color-fg;
-  padding: 0;
-  font-size: 20px;
-  line-height: 1;
-}
-</style>
+<style scoped src="./AccountPage.scss" lang="scss"></style>

@@ -14,6 +14,7 @@ import PrivacyPolicyPage from '../pages/Legal/PrivacyPolicyPage.vue'
 import CookiePolicyPage from '../pages/Legal/CookiePolicyPage.vue'
 
 import QrCodeStatsPage from '../pages/QrCodeStats/QrCodeStatsPage.vue'
+import SubscriptionPage from '../pages/Subscription/SubscriptionPage.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -34,6 +35,7 @@ export const router = createRouter({
     { path: '/privacy', name: 'privacy', component: PrivacyPolicyPage },
     { path: '/cookies', name: 'cookies', component: CookiePolicyPage },
 
+    { path: '/subscription', name: 'subscription', component: SubscriptionPage },
     { path: '/qr-codes/:id/stats', name: 'qr-code-stats', component: QrCodeStatsPage },
 
     { path: '/:pathMatch(.*)*', redirect: '/' },

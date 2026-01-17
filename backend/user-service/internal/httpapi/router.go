@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 	"github.com/aws/smithy-go"
+	"github.com/stripe/stripe-go/v81"
 
 	"user-service/internal/cognito"
 	"user-service/internal/middleware"
@@ -77,6 +78,14 @@ type Server struct {
 
 	CookieSecure   bool
 	CookieSameSite http.SameSite
+
+	// Stripe integration (optional)
+	StripeClient interface {
+		CreateCheckoutSession(customerEmail string, priceID string) (*stripe.CheckoutSession, error)
+		CreateCustomerPortalSession(customerEmail string) (*stripe.BillingPortalSession, error)
+		ConstructEvent(payload []byte, signature string) (stripe.Event, error)
+		GetPriceIDForPlan(plan string) (string, error)
+	}
 }
 
 const cognitoUserTypeAttr = "custom:user_type"
@@ -208,6 +217,16 @@ func NewRouter(srv Server) http.Handler {
 	// Admin-style CRUD (guarded)
 	mux.Handle("/api/users", wrap(http.HandlerFunc(requireAdmin(srv.AdminAPIKey, adminCollectionHandler))))
 	mux.Handle("/api/users/", wrap(http.HandlerFunc(requireAdmin(srv.AdminAPIKey, adminItemHandler))))
+
+	// Stripe routes (if Stripe is configured)
+	if srv.StripeClient != nil {
+		checkoutHandler := http.HandlerFunc(srv.handleCreateCheckoutSession)
+		portalHandler := http.HandlerFunc(srv.handleCreatePortalSession)
+		webhookHandler := http.HandlerFunc(srv.handleStripeWebhook)
+		mux.Handle("/api/stripe/checkout-session", wrap(checkoutHandler))
+		mux.Handle("/api/stripe/portal-session", wrap(portalHandler))
+		mux.Handle("/api/stripe/webhook", wrap(webhookHandler))
+	}
 
 	return mux
 }
