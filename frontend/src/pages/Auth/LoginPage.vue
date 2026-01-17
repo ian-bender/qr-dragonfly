@@ -89,7 +89,6 @@ async function submit() {
 
       <div class="links">
         <RouterLink to="/register">Create account</RouterLink>
-        <RouterLink to="/confirm">Confirm email</RouterLink>
         <RouterLink to="/forgot-password">Forgot password</RouterLink>
       </div>
     </section>

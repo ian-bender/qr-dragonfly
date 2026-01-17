@@ -68,8 +68,8 @@ async function submit() {
       <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
 
       <div class="links">
-        <AppButton to="/confirm" variant="secondary">Go To Confirm</AppButton>
-        <AppButton to="/login" variant="secondary">Go To Login</AppButton>
+        <RouterLink to="/confirm">Confirm email</RouterLink>
+        <RouterLink to="/login">Login</RouterLink>
       </div>
     </section>
   </main>

@@ -2,7 +2,6 @@
 import { computed, ref, watchEffect } from 'vue'
 import { requestJson } from '../../api'
 import type { QrCodeItem } from '../../types/qrCodeItem'
-import { formatDateTime } from '../../lib/date'
 import { generateQrDataUrl } from '../../lib/qr'
 import { trackingUrlForQrId } from '../../lib/tracking'
 
@@ -548,7 +547,6 @@ function confirmRemove() {
             <th>Label</th>
             <th>URL</th>
             <th>Active</th>
-            <th>Created</th>
             <th>Trend</th>
             <th>QR</th>
             <th>Actions</th>
@@ -598,7 +596,6 @@ function confirmRemove() {
                 {{ qrCode.active ? 'Active' : 'Inactive' }}
               </button>
             </td>
-            <td class="muted">{{ formatDateTime(qrCode.createdAtIso) }}</td>
             <td>
               <div v-if="isSampleId(qrCode.id)" class="sparkWrap" aria-hidden="true">
                 <svg class="spark" viewBox="0 0 100 28">
@@ -657,6 +654,7 @@ function confirmRemove() {
                   <button class="buttonSmall" type="button" :disabled="isBusy(qrCode.id)" @click="startEdit(qrCode)">
                     Edit
                   </button>
+                  <RouterLink class="buttonSmall" :to="{ name: 'qr-code-stats', params: { id: qrCode.id } }">Stats</RouterLink>
                   <button class="buttonSmall" type="button" :disabled="isBusy(qrCode.id)" @click="emit('download', qrCode)">
                     Download
                   </button>

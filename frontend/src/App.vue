@@ -66,7 +66,7 @@ const isAuthRoute = computed(() => {
     <footer class="footer" aria-label="Footer">
       <div class="footerInner">
         <div class="footerLeft">
-          <span class="footerText">© {{ year }} QR-Dragonfly. Made with care in Minnesota.</span>
+          <span class="footerText">© {{ year }} QR-Dragonfly. Made with love in Minnesota.</span>
         </div>
 
         <nav class="footerNav" aria-label="Footer links">
