@@ -13,6 +13,7 @@ import (
 
 	"user-service/internal/cognito"
 	"user-service/internal/httpapi"
+	"user-service/internal/middleware"
 	"user-service/internal/stripe"
 )
 
@@ -75,10 +76,18 @@ func main() {
 		StripeClient:   stripeClient,
 	})
 
-	handler := httpapi.NewCorsMiddleware(httpapi.CorsOptions{
+	// Apply middleware layers (order matters!)
+	var handler http.Handler = router
+
+	// 1. CORS (outermost)
+	handler = httpapi.NewCorsMiddleware(httpapi.CorsOptions{
 		AllowedOrigins:   allowedOrigins,
 		AllowCredentials: true,
-	})(router)
+	})(handler)
+
+	// 2. Rate limiting (100 requests per minute per IP)
+	rateLimiter := middleware.NewRateLimiter(100, time.Minute)
+	handler = rateLimiter.Middleware(handler)
 
 	srv := &http.Server{
 		Addr:              ":" + port,

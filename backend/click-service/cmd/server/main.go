@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"click-service/internal/httpapi"
+	"click-service/internal/middleware"
 	"click-service/internal/qrclient"
 	"click-service/internal/store"
 )
@@ -41,11 +42,19 @@ func main() {
 	qr := qrclient.New(qrBaseURL)
 
 	router := httpapi.NewRouter(httpapi.Server{Store: st, QrClient: qr})
-	// CORS is only relevant for JSON API calls from the frontend.
-	handler := httpapi.NewCorsMiddleware(httpapi.CorsOptions{
+
+	// Apply middleware layers (order matters!)
+	var handler http.Handler = router
+
+	// 1. CORS (outermost)
+	handler = httpapi.NewCorsMiddleware(httpapi.CorsOptions{
 		AllowedOrigins:   allowedOrigins,
 		AllowCredentials: true,
-	})(router)
+	})(handler)
+
+	// 2. Rate limiting (500 requests per minute per IP for click tracking)
+	rateLimiter := middleware.NewRateLimiter(500, time.Minute)
+	handler = rateLimiter.Middleware(handler)
 
 	srv := &http.Server{
 		Addr:              ":" + port,

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"qr-service/internal/httpapi"
+	"qr-service/internal/middleware"
 	"qr-service/internal/store"
 )
 
@@ -38,10 +39,19 @@ func main() {
 	}
 
 	router := httpapi.NewRouter(httpapi.Server{Store: st})
-	handler := httpapi.NewCorsMiddleware(httpapi.CorsOptions{
+
+	// Apply middleware layers (order matters!)
+	var handler http.Handler = router
+
+	// 1. CORS (outermost)
+	handler = httpapi.NewCorsMiddleware(httpapi.CorsOptions{
 		AllowedOrigins:   allowedOrigins,
 		AllowCredentials: true,
-	})(router)
+	})(handler)
+
+	// 2. Rate limiting (200 requests per minute per IP for QR service)
+	rateLimiter := middleware.NewRateLimiter(200, time.Minute)
+	handler = rateLimiter.Middleware(handler)
 
 	srv := &http.Server{
 		Addr:              ":" + port,
