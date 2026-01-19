@@ -23,7 +23,7 @@ function toErrorMessage(err: unknown): string {
         case 'rate_limited':
           return 'Too many attempts. Please wait and try again.'
         case 'invalid_password':
-          return 'Password does not meet the pool requirements.'
+          return 'Password does not meet the requirements.'
         default:
           return code
       }
