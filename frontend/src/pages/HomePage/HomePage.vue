@@ -2,6 +2,7 @@
 import { useQrCodes } from '../../composables/useQrCodes'
 import { useUser } from '../../composables/useUser'
 import CreateQrCodeForm from '../../components/CreateQrCodeForm/CreateQrCodeForm.vue'
+import DefaultRedirectSettings from '../../components/DefaultRedirectSettings/DefaultRedirectSettings.vue'
 import QrCodesTable from '../../components/QrCodesTable/QrCodesTable.vue'
 
 const { isAuthed } = useUser()
@@ -45,6 +46,8 @@ const {
       :errorMessage="errorMessage"
       @submit="createQrCode"
     />
+
+    <DefaultRedirectSettings v-if="isAuthed" />
 
     <QrCodesTable
       :qrCodes="qrCodes"

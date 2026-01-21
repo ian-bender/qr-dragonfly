@@ -21,6 +21,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/api/settings': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api/clicks': {
         target: 'http://localhost:8082',
         changeOrigin: true,
