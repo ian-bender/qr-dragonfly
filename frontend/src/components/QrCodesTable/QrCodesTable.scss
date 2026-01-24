@@ -181,6 +181,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: center;
 }
 
 .actionsCell {
@@ -264,6 +265,7 @@
 .dialogTitle {
   margin: 0;
   font-size: 18px;
+  text-align: center;
 }
 
 .dialogMeta {
@@ -315,4 +317,5 @@
   font-size: 12px;
   opacity: 0.85;
   word-break: break-word;
+  text-align: center;
 }

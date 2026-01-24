@@ -89,6 +89,8 @@ const id = computed(() => String(route.params.id ?? ''))
 
 const { isAuthed, isLoaded, userType } = useUser()
 
+const isFreeUser = computed(() => userType.value === 'free')
+
 watchEffect(() => {
   if (!isLoaded.value) return
   if (isAuthed.value) return
@@ -116,6 +118,38 @@ const hourlyRows = computed(() => {
   if (!d) return []
   return hoursArray(d).map((count, hour) => ({ hour, count }))
 })
+
+// Sample data for free users
+const sampleHourlyRows = [
+  { hour: 0, count: 12 },
+  { hour: 1, count: 8 },
+  { hour: 2, count: 3 },
+  { hour: 3, count: 5 },
+  { hour: 4, count: 7 },
+  { hour: 5, count: 15 },
+  { hour: 6, count: 24 },
+  { hour: 7, count: 38 },
+  { hour: 8, count: 52 },
+  { hour: 9, count: 67 },
+  { hour: 10, count: 71 },
+  { hour: 11, count: 68 },
+  { hour: 12, count: 75 },
+  { hour: 13, count: 82 },
+  { hour: 14, count: 91 },
+  { hour: 15, count: 88 },
+  { hour: 16, count: 79 },
+  { hour: 17, count: 84 },
+  { hour: 18, count: 72 },
+  { hour: 19, count: 61 },
+  { hour: 20, count: 48 },
+  { hour: 21, count: 35 },
+  { hour: 22, count: 28 },
+  { hour: 23, count: 19 },
+]
+
+const displayLast7Total = computed(() => (isFreeUser.value ? 1247 : last7Total.value))
+const displaySelectedDayTotal = computed(() => (isFreeUser.value ? 342 : (selectedDaily.value?.total ?? 0)))
+const displayHourlyRows = computed(() => (isFreeUser.value ? sampleHourlyRows : hourlyRows.value))
 
 watchEffect(() => {
   if (!isAuthed.value) return
@@ -171,7 +205,13 @@ watchEffect(() => {
       <div v-if="isLoading" class="muted">Loading…</div>
 
       <template v-else-if="qrCode">
-        <div class="kv">
+        <div v-if="isFreeUser" class="upgradePrompt">
+          <h3 class="upgradeTitle">📊 Unlock Detailed Analytics</h3>
+          <p class="upgradeText">Upgrade to view hourly breakdowns, tracking URLs, and detailed click statistics.</p>
+          <RouterLink to="/subscription" class="upgradeButton">Upgrade Now</RouterLink>
+        </div>
+
+        <div class="kv" :class="{ blurred: isFreeUser }">
           <div class="kvRow">
             <span class="kvKey">Target</span>
             <a class="link" :href="qrCode.url" target="_blank" rel="noreferrer">{{ qrCode.url }}</a>
@@ -182,10 +222,10 @@ watchEffect(() => {
           </div>
         </div>
 
-        <div class="statsGrid">
+        <div class="statsGrid" :class="{ blurred: isFreeUser }">
           <div class="statCard">
             <div class="statLabel">Clicks (last 7 days)</div>
-            <div class="statValue">{{ last7Total }}</div>
+            <div class="statValue">{{ displayLast7Total }}</div>
           </div>
 
           <div class="statCard">
@@ -197,14 +237,14 @@ watchEffect(() => {
 
           <div class="statCard">
             <div class="statLabel">Clicks (selected day)</div>
-            <div class="statValue">{{ selectedDaily?.total ?? 0 }}</div>
+            <div class="statValue">{{ displaySelectedDayTotal }}</div>
           </div>
         </div>
 
         <h2 class="sectionTitle">Hourly breakdown</h2>
-        <p class="muted" v-if="!selectedDaily">No click data available for this day.</p>
+        <p class="muted" v-if="!selectedDaily && !isFreeUser">No click data available for this day.</p>
 
-        <table v-else class="table">
+        <table v-if="selectedDaily || isFreeUser" class="table" :class="{ blurred: isFreeUser }">
           <thead>
             <tr>
               <th>Hour (UTC)</th>
@@ -212,7 +252,7 @@ watchEffect(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in hourlyRows" :key="row.hour">
+            <tr v-for="row in displayHourlyRows" :key="row.hour">
               <td class="mono">{{ String(row.hour).padStart(2, '0') }}:00</td>
               <td class="mono">{{ row.count }}</td>
             </tr>

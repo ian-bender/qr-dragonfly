@@ -38,6 +38,8 @@ const {
       </div>
     </section>
 
+    <DefaultRedirectSettings v-if="isAuthed" />
+
     <CreateQrCodeForm
       v-if="isAuthed"
       v-model:label="labelInput"
@@ -46,8 +48,6 @@ const {
       :errorMessage="errorMessage"
       @submit="createQrCode"
     />
-
-    <DefaultRedirectSettings v-if="isAuthed" />
 
     <QrCodesTable
       :qrCodes="qrCodes"
