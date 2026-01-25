@@ -49,9 +49,11 @@ const urlModel = computed({
         />
       </label>
 
-      <button class="button" type="submit" :disabled="isCreating">
-        {{ isCreating ? 'Creating…' : 'Create' }}
-      </button>
+      <div class="buttonWrapper">
+        <button class="button" type="submit" :disabled="isCreating" tabindex="0">
+          {{ isCreating ? 'Creating…' : 'Create' }}
+        </button>
+      </div>
     </form>
 
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>

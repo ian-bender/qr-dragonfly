@@ -15,6 +15,7 @@ import CookiePolicyPage from '../pages/Legal/CookiePolicyPage.vue'
 
 import QrCodeStatsPage from '../pages/QrCodeStats/QrCodeStatsPage.vue'
 import SubscriptionPage from '../pages/Subscription/SubscriptionPage.vue'
+import AdminPage from '../pages/Admin/AdminPage.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -37,6 +38,8 @@ export const router = createRouter({
 
     { path: '/subscription', name: 'subscription', component: SubscriptionPage },
     { path: '/qr-codes/:id/stats', name: 'qr-code-stats', component: QrCodeStatsPage },
+    
+    { path: '/admin', name: 'admin', component: AdminPage },
 
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

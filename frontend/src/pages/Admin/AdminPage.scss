@@ -1,0 +1,183 @@
+@use '../../styles/variables' as *;
+
+.adminKeySection {
+  margin-bottom: $space-lg;
+}
+
+.keyInput {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: $space-md;
+  align-items: end;
+}
+
+.searchSection {
+  margin: $space-lg 0;
+}
+
+.usersTable {
+  margin-top: $space-lg;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 8px;
+  border-top: 1px solid $border-color;
+}
+
+.table th {
+  font-weight: 600;
+  font-size: $font-size-xs;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: $radius-md;
+  font-size: $font-size-xs;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-free {
+  background: rgba(128, 128, 128, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.badge-basic {
+  background: rgba(59, 130, 246, 0.2);
+  color: rgb(147, 197, 253);
+}
+
+.badge-enterprise {
+  background: rgba(168, 85, 247, 0.2);
+  color: rgb(216, 180, 254);
+}
+
+.badge-admin {
+  background: rgba(239, 68, 68, 0.2);
+  color: rgb(252, 165, 165);
+}
+
+.dateCell {
+  font-size: $font-size-sm;
+  opacity: 0.8;
+}
+
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 500px;
+  width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  background: $color-bg;
+  padding: 0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.dialogInner {
+  padding: $space-lg;
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $space-md;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-size: 18px;
+  text-align: center;
+}
+
+.dialogContent {
+  margin: $space-lg 0;
+}
+
+.userEmail {
+  font-weight: 600;
+  margin: 0 0 $space-md;
+  opacity: 0.9;
+}
+
+.hint {
+  margin-top: $space-md;
+  padding: $space-sm;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: $radius-md;
+  font-size: $font-size-xs;
+  opacity: 0.9;
+}
+
+.actions {
+  display: flex;
+  gap: $space-md;
+  justify-content: center;
+  margin-top: $space-lg;
+}
+
+.buttonSmall.secondary {
+  background: transparent;
+  opacity: 0.8;
+
+  &:hover:not(:disabled) {
+    opacity: 1;
+  }
+}
+
+.iconButton {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: inherit;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-md;
+  opacity: 0.8;
+
+  &:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+@media (max-width: 768px) {
+  .keyInput {
+    grid-template-columns: 1fr;
+  }
+
+  .table {
+    font-size: $font-size-sm;
+  }
+
+  .table th,
+  .table td {
+    padding: 8px 4px;
+  }
+}

@@ -6,7 +6,7 @@ import { useUser } from './composables/useUser'
 
 const route = useRoute()
 const router = useRouter()
-const { user } = useUser()
+const { user, userType } = useUser()
 const { reload } = useUser()
 
 const isAuthed = computed(() => Boolean(user.value?.email))
@@ -54,6 +54,7 @@ const isAuthRoute = computed(() => {
 
         <template v-if="isAuthed">
           <span class="navUser" aria-label="Signed in user">{{ user?.email }}</span>
+          <RouterLink v-if="userType === 'admin'" class="navLink" to="/admin">Admin</RouterLink>
           <RouterLink class="navLink" to="/subscription">Subscription</RouterLink>
           <RouterLink class="navLink" to="/account">Account</RouterLink>
           <button class="navLink navButton" type="button" :disabled="busyLogout" @click="logout">

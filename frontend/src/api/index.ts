@@ -1,4 +1,6 @@
 export * from './http'
+export { adminApi } from './admin/admin.api'
+export type { AdminUser, UpdateUserRequest } from './admin/admin.api'
 export { qrCodesApi } from './qrCodes/qrCodes.api'
 export type { QrCode, CreateQrCodeInput, UpdateQrCodeInput } from './qrCodes/qrCodes.types'
 export { settingsApi } from './settings/settings.api'

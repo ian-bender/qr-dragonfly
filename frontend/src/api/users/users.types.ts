@@ -3,6 +3,7 @@ export type User = {
   email: string
   name?: string
   userType?: 'free' | 'basic' | 'enterprise' | 'admin'
+  entitlements?: string
   createdAtIso?: string
 }
 
