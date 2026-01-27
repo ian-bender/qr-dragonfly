@@ -31,6 +31,10 @@ func (s *storeSpy) GetDaily(qrCodeID string, day time.Time) (store.DailyClickSta
 	return store.DailyClickStats{}, store.ErrNotFound
 }
 
+func (s *storeSpy) GetDailyBatch(qrCodeID string, days []time.Time) (map[string]store.DailyClickStats, error) {
+	return nil, store.ErrNotFound
+}
+
 type qrClientSpy struct {
 	called bool
 	gotID  string
