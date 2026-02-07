@@ -51,7 +51,6 @@ async function handleDownload(format: QrFormat) {
   <main class="page">
     <header class="header">
       <h1 class="title">QR Codes</h1>
-      <p class="subtitle">Create QR codes for user-inputted URLs.</p>
     </header>
 
     <section v-if="!isAuthed" class="authPrompt">
